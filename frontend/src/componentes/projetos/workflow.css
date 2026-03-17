@@ -1,0 +1,256 @@
+/**
+ * DukesFreela — Workflow de Projetos / Design System CSS próprio
+ * Inspirado em ferramentas de agências criativas (ClickUp, RockContent, etc.)
+ * Tema: Dark Mode nativo · Acentos indigo/emerald/amber
+ */
+
+/* ── BARRA DE PROGRESSO DE ETAPAS ─────────────────────────────── */
+
+.workflow-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    position: relative;
+    padding: 0.5rem 0;
+}
+
+.workflow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    position: relative;
+    flex: 1;
+}
+
+/* Linha conectora entre etapas */
+.workflow-step:not(:first-child)::before {
+    content: "";
+    position: absolute;
+    top: 12px;
+    right: calc(50% + 14px);
+    left: calc(-50% + 14px);
+    height: 2px;
+    background: color-mix(in srgb, white 8%, transparent);
+    z-index: 0;
+    transition: background 0.4s ease;
+}
+
+.workflow-step.done:not(:first-child)::before,
+.workflow-step.active:not(:first-child)::before {
+    background: linear-gradient(90deg, hsl(239 84% 67%), hsl(239 84% 67% / 0.4));
+}
+
+/* Bolinha da etapa */
+.workflow-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, white 12%, transparent);
+    background: hsl(240 10% 15%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-size: 11px;
+    color: hsl(240 5% 45%);
+}
+
+.workflow-step.done .workflow-dot {
+    background: hsl(239 84% 67%);
+    border-color: hsl(239 84% 67%);
+    color: white;
+    box-shadow: 0 0 12px hsl(239 84% 67% / 0.5);
+}
+
+.workflow-step.active .workflow-dot {
+    background: hsl(240 10% 18%);
+    border-color: hsl(239 84% 67%);
+    color: hsl(239 84% 67%);
+    box-shadow: 0 0 0 4px hsl(239 84% 67% / 0.15), 0 0 12px hsl(239 84% 67% / 0.3);
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.workflow-step.rejected .workflow-dot {
+    background: hsl(0 75% 45% / 0.2);
+    border-color: hsl(0 75% 55%);
+    color: hsl(0 75% 65%);
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 4px hsl(239 84% 67% / 0.15), 0 0 12px hsl(239 84% 67% / 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 0 7px hsl(239 84% 67% / 0.08), 0 0 20px hsl(239 84% 67% / 0.4);
+    }
+}
+
+/* Label da etapa */
+.workflow-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: hsl(240 5% 45%);
+    white-space: nowrap;
+    transition: color 0.2s;
+}
+
+.workflow-step.done .workflow-label {
+    color: hsl(239 84% 75%);
+}
+
+.workflow-step.active .workflow-label {
+    color: hsl(239 84% 80%);
+    font-weight: 700;
+}
+
+.workflow-step.rejected .workflow-label {
+    color: hsl(0 75% 60%);
+}
+
+/* ── CARD DE PROJETO PREMIUM ─────────────────────────────────── */
+
+.projeto-card {
+    background: hsl(240 10% 9%);
+    border: 1px solid color-mix(in srgb, white 8%, transparent);
+    border-radius: 14px;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+    transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s;
+}
+
+.projeto-card:active {
+    cursor: grabbing;
+    transform: scale(0.98);
+}
+
+.projeto-card:hover {
+    border-color: color-mix(in srgb, white 15%, transparent);
+    box-shadow: 0 8px 32px hsl(239 84% 67% / 0.1);
+}
+
+/* Gradiente de canto ambar para cards avulsos */
+.projeto-card.avulso::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle at top right, hsl(45 95% 55% / 0.2), transparent 70%);
+    pointer-events: none;
+    border-radius: 0 14px 0 0;
+}
+
+/* ── BADGE DE TIPO / STATUS ──────────────────────────────────── */
+
+.dk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.dk-badge.avulso {
+    background: hsl(45 95% 55% / 0.12);
+    border-color: hsl(45 95% 55% / 0.35);
+    color: hsl(45 95% 70%);
+}
+
+.dk-badge.contrato {
+    background: hsl(239 84% 67% / 0.1);
+    border-color: hsl(239 84% 67% / 0.3);
+    color: hsl(239 84% 78%);
+}
+
+.dk-badge.urgente {
+    background: hsl(0 75% 55% / 0.12);
+    border-color: hsl(0 75% 55% / 0.35);
+    color: hsl(0 75% 70%);
+}
+
+.dk-badge.ok {
+    background: hsl(155 65% 45% / 0.12);
+    border-color: hsl(155 65% 45% / 0.35);
+    color: hsl(155 65% 60%);
+}
+
+/* ── COLUNA DO KANBAN ────────────────────────────────────────── */
+
+.kanban-col-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    margin-bottom: 12px;
+    backdrop-filter: blur(8px);
+}
+
+.kanban-col-count {
+    margin-left: auto;
+    font-size: 11px;
+    background: hsl(240 10% 12%);
+    color: hsl(240 5% 50%);
+    padding: 1px 9px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, white 8%, transparent);
+    font-weight: 600;
+}
+
+/* ── PROGRESSO MINI (BARRA HORIZONTAL FINA) ─────────────────── */
+
+.mini-progress-bar {
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, white 6%, transparent);
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.mini-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, hsl(239 84% 67%), hsl(262 83% 70%));
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── TOOLTIP DE ETAPA ────────────────────────────────────────── */
+
+.workflow-step-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: hsl(240 10% 14%);
+    border: 1px solid color-mix(in srgb, white 10%, transparent);
+    color: hsl(240 5% 85%);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 50;
+}
+
+.workflow-step:hover .workflow-step-tooltip {
+    opacity: 1;
+}

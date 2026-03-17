@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------
+// ENTIDADES PRINCIPAIS
+// -----------------------------------------------------------------
+
+model Usuario {
+  id           String    @id @default(uuid())
+  nome         String
+  email        String    @unique
+  senhaHash    String
+  funcao       FuncaoUsuario @default(USUARIO)
+  
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime? // Soft Delete Global
+
+  logs         LogAuditoria[]
+  comentarios  ComentarioProjeto[]
+
+  @@map("usuarios")
+}
+
+enum FuncaoUsuario {
+  ADMINISTRADOR
+  GERENTE
+  USUARIO
+}
+
+model Cliente {
+  id           String    @id @default(uuid())
+  nome         String
+  email        String?
+  telefone     String?
+  documento    String?   // CPF ou CNPJ
+
+  // Prontuário do Cliente
+  linkDrive    String?   // Link para pasta no Google Drive/Nuvem
+  linkBriefing String?   // Link para o documento de briefing
+  observacoes  String?   @db.Text
+
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime? // Soft Delete Global
+
+  contratos    Contrato[]
+  projetos     Projeto[]   // Serviços avulsos (sem contrato formal)
+
+  @@map("clientes")
+}
+
+model Contrato {
+  id           String    @id @default(uuid())
+  clienteId    String
+  titulo       String
+  descricao    String?
+  valorTotal   Decimal   @db.Decimal(10, 2)
+  status       StatusContrato @default(RASCUNHO)
+
+  assinaturaEm DateTime?
+  inicioEm     DateTime?
+  fimEm        DateTime?
+
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime? // Soft Delete Global
+
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
+  projetos     Projeto[]
+  creditos     CreditoContrato[] // Pacotes de serviços/créditos do contrato
+
+  @@map("contratos")
+}
+
+enum StatusContrato {
+  RASCUNHO
+  ENVIADO
+  ASSINADO
+  ATIVO
+  EM_ANDAMENTO
+  PAUSADO
+  VENCIDO
+  CANCELADO
+  FINALIZADO
+}
+
+model Projeto {
+  id           String    @id @default(uuid())
+  contratoId   String?   // Opcional — null para serviços avulsos
+  clienteId    String?   // Para serviços avulsos (sem contrato formal)
+  creditoId    String?   // Crédito descontado deste projeto (se o contrato tiver pacotes)
+  tipoProjeto  String?   // Tipo do projeto: "Carrossel", "Estático", "Vídeo", etc.
+  avulso       Boolean   @default(false)
+  valorAvulso  Decimal?  @db.Decimal(10, 2)
+  nome         String
+  descricao    String?
+  servicos     Json?         // Array de itens: [{ nome, valor, catalogoId? }]
+  status       StatusProjeto @default(NAO_INICIADO)
+
+  prazoEstimado DateTime?
+  concluidoEm   DateTime?
+
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime? // Soft Delete Global
+
+  contrato     Contrato?     @relation(fields: [contratoId], references: [id])
+  cliente      Cliente?      @relation(fields: [clienteId], references: [id])
+  financeiro   Financeiro[]
+  creditoUsado CreditoContrato? @relation(fields: [creditoId], references: [id]) // Crédito descontado
+
+  comentarios  ComentarioProjeto[]
+
+  @@map("projetos")
+}
+
+model ComentarioProjeto {
+  id        String   @id @default(uuid())
+  projetoId String
+  usuarioId String?  // Opcional: nulo se for gerado por sistema (webhooks/gatilhos)
+  texto     String   @db.Text
+  criadoEm  DateTime @default(now())
+
+  projeto   Projeto  @relation(fields: [projetoId], references: [id])
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("comentarios_projeto")
+}
+
+
+// Catálogo de serviços pré-definidos para Projetos Avulsos
+model ServicoCatalogo {
+  id           String    @id @default(uuid())
+  nome         String
+  descricao    String?   @db.Text
+  valorPadrao  Decimal   @db.Decimal(10, 2)
+  status       StatusServico @default(ATIVO)
+
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  @@map("servicos_catalogo")
+}
+
+enum StatusServico {
+  ATIVO
+  INATIVO
+}
+
+enum StatusProjeto {
+  NAO_INICIADO
+  EM_ANDAMENTO
+  IMPEDIDO
+  CONCLUIDO
+  CANCELADO
+}
+
+// Pacotes de créditos vinculados a um contrato
+// Ex: "20 Estáticos", "10 Carrosséis", "5 Vídeos"
+model CreditoContrato {
+  id                String   @id @default(uuid())
+  contratoId        String
+  nome              String   // Ex: "Estático", "Carrossel", "Vídeo"
+  quantidadeTotal   Int      // Total contratado
+  quantidadeUsada   Int      @default(0) // Já consumido
+  valorUnitario     Decimal  @db.Decimal(10, 2) // Valor unitário do item
+
+  criadoEm         DateTime @default(now())
+  atualizadoEm     DateTime @updatedAt
+
+  contrato         Contrato  @relation(fields: [contratoId], references: [id])
+  projetos         Projeto[] // Projetos que usaram este crédito
+
+  @@map("creditos_contrato")
+}
+
+model Financeiro {
+  id           String    @id @default(uuid())
+  projetoId    String
+  tipo         TipoLancamento
+  valor        Decimal   @db.Decimal(10, 2)
+  descricao    String
+  status       StatusFinanceiro @default(PENDENTE)
+
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  mesReferencia  String    // Ex: "2026-03" - para bloqueio temporal
+
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm   DateTime? // Soft Delete Global
+
+  projeto      Projeto   @relation(fields: [projetoId], references: [id])
+
+  @@map("financeiro")
+}
+
+enum TipoLancamento {
+  RECEITA
+  DESPESA
+}
+
+enum StatusFinanceiro {
+  PENDENTE
+  PAGO
+  ATRASADO
+  CANCELADO
+}
+
+// -----------------------------------------------------------------
+// SISTEMA DE AUDITORIA
+// -----------------------------------------------------------------
+
+model LogAuditoria {
+  id           String    @id @default(uuid())
+  usuarioId    String?
+  acao         String    // Ex: "CREATE", "UPDATE", "SOFT_DELETE"
+  entidade     String    // Ex: "Contrato", "Projeto"
+  entidadeId   String
+  detalhes     Json?     // Diferenca do que foi alterado
+  ip           String?
+
+  criadoEm     DateTime  @default(now())
+
+  usuario      Usuario?  @relation(fields: [usuarioId], references: [id])
+
+  @@map("logs_auditoria")
+}
