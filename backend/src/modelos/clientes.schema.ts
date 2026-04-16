@@ -7,6 +7,9 @@ export const clienteCreateSchema = z.object({
     documento: z.string().optional().nullable(),
     linkDrive: z.string().url("Insira uma URL válida para o Google Drive").optional().nullable().or(z.literal("")),
     linkBriefing: z.string().url("Insira uma URL válida para o Briefing").optional().nullable().or(z.literal("")),
+    logoUrl: z.string().url("URL de logo inválida").optional().nullable().or(z.literal("")),
+    saude: z.enum(["OTIMA", "REGULAR", "ALERTA"]).optional().default("OTIMA"),
+    mrrEstimado: z.number().optional().nullable(),
     observacoes: z.string().optional().nullable(),
 });
 

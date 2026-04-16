@@ -3,7 +3,7 @@
 Bem-vindo ao repositório do **DukesFreela ERP**, um sistema construído sob a premissa de Inteligência Artificial Multi-Agente (*Agent-Driven Architecture*), focado em fornecer uma suíte SaaS corporativa elegante e escalável para estúdios criativos e designers freelancers.
 
 ## 🚀 Status: Fase 1 - Fundação
-O projeto encontra-se com sua infraestrutura vital configurada. O **Backend** conta com Node.js + Prisma com Segurança via Zod e JWT, enquanto o **Frontend** possui Vite + React empoderado com o novíssimo TailwindCSS V4 e `shadcn/ui`.
+O projeto encontra-se com sua infraestrutura vital configurada. O **Backend** conta com Node.js + Prisma com Segurança via Zod e JWT, enquanto o **Frontend** possui Vite + React empoderado com o novíssimo TailwindCSS V4 e `shadcn/ui + Material-UI`.
 
 ---
 

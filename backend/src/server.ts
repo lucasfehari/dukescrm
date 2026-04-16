@@ -18,8 +18,18 @@ import rotasCreditos from "./rotas/creditos/creditos.routes.js";
 import rotasCatalogo from "./servicos/catalogo/catalogo.routes.js";
 import rotasDashboard from "./rotas/dashboard/dashboard.routes.js";
 import rotasRelatorios from "./rotas/relatorios/relatorios.routes.js";
+import { uploadRoutes } from "./rotas/upload.routes.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Endpoints
+// Servir arquivos estáticos (Uploads locais)
+app.use("/uploads", express.static(path.resolve(__dirname, "..", "uploads")));
+
+app.use("/api/upload", uploadRoutes);
 app.use("/api/auth", rotasAuth);
 app.use("/api/clientes", rotasClientes);
 app.use("/api/contratos", rotasContratos);

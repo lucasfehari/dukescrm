@@ -1,22 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    BarChart2, Download, RefreshCw, Loader2, Users,
-    FileText, CheckCircle2, TrendingUp, AlertCircle, Eye
-} from "lucide-react";
+import { Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
-import { relatoriosApi, clientesApi, type RelatorioMensalCliente, type Cliente, type RelatorioClienteItem } from "../../servicos/api";
+import { relatoriosApi, type RelatorioMensalCliente, type RelatorioClienteItem } from "../../servicos/api";
 import { RelatorioClienteModal } from "./RelatorioClienteModal";
-
-// @Agent: UI/UX Designer (AUID) + Empresário — Relatórios Mensais por Cliente
 
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -25,20 +14,17 @@ function mesHoje() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function mesLabel(mes: string) {
-    const [ano, m] = mes.split("-");
-    const nomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    return `${nomes[parseInt(m) - 1]}/${ano}`;
-}
+const COLORS = ['#ec5b13', '#f97316', '#fb923c', '#fdba74', '#fed7aa'];
 
-const CustomTooltio = ({ active, payload, label }: any) => {
-    if (active && payload?.length) {
+const CustomPieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
         return (
-            <div className="bg-zinc-900 border border-white/10 rounded-lg p-3 shadow-xl text-xs">
-                <p className="text-zinc-400 font-medium mb-1">{label}</p>
-                {payload.map((p: any) => (
-                    <p key={p.name} style={{ color: p.fill }}>{p.name}: {moeda(p.value)}</p>
-                ))}
+            <div className="bg-dark-950/90 backdrop-blur-md border border-white/10 rounded-xl p-3 shadow-2xl">
+                <p className="text-xs font-bold text-white mb-1">{payload[0].name}</p>
+                <p className="text-sm font-black" style={{ color: payload[0].payload.fill }}>
+                    {moeda(payload[0].value)}
+                </p>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Margem de Receita</p>
             </div>
         );
     }
@@ -47,38 +33,30 @@ const CustomTooltio = ({ active, payload, label }: any) => {
 
 export function RelatoriosPage() {
     const [mes, setMes] = useState(mesHoje());
-    const [clienteId, setClienteId] = useState("");
-    const [clientes, setClientes] = useState<Cliente[]>([]);
     const [dados, setDados] = useState<RelatorioMensalCliente | null>(null);
     const [carregando, setCarregando] = useState(false);
     const [exportando, setExportando] = useState(false);
     const [modalAberto, setModalAberto] = useState(false);
     const [clienteSnapshot, setClienteSnapshot] = useState<RelatorioClienteItem | null>(null);
 
-    // Carregar lista de clientes para o filtro
-    useEffect(() => {
-        clientesApi.listar().then(setClientes).catch(() => { });
-    }, []);
-
     const buscar = useCallback(async () => {
         setCarregando(true);
         try {
-            const res = await relatoriosApi.mensalPorCliente(mes, clienteId || undefined);
+            const res = await relatoriosApi.mensalPorCliente(mes);
             setDados(res);
         } catch (e: any) {
             toast.error("Erro ao gerar relatório", { description: e.message });
         } finally {
             setCarregando(false);
         }
-    }, [mes, clienteId]);
+    }, [mes]);
 
-    // Carrega automaticamente no mount
     useEffect(() => { buscar(); }, [buscar]);
 
     async function exportarCsv() {
         setExportando(true);
         try {
-            await relatoriosApi.downloadCsv(mes, clienteId || undefined);
+            await relatoriosApi.downloadCsv(mes);
             toast.success("Relatório exportado!", { description: `relatorio-${mes}.csv` });
         } catch (e: any) {
             toast.error("Erro ao exportar", { description: e.message });
@@ -87,227 +65,304 @@ export function RelatoriosPage() {
         }
     }
 
-    // Dados para o gráfico de barras
-    const chartData = dados?.clientes
-        .filter(c => c.receita > 0 || c.pendente > 0)
-        .sort((a, b) => b.receita - a.receita)
-        .slice(0, 8)
-        .map(c => ({
-            nome: c.cliente.split(" ")[0], // Primeiro nome
-            Receita: c.receita,
-            Pendente: c.pendente,
-        })) ?? [];
+    // Prepare Top 4 Revenue distinct items for the PIE Chart
+    const pieData = useMemo(() => {
+        if (!dados) return [];
+        const top = [...dados.clientes]
+            .filter(c => c.receita > 0)
+            .sort((a, b) => b.receita - a.receita)
+            .slice(0, 4)
+            .map((c, i) => ({
+                name: c.cliente.split(' ')[0], // First Name
+                value: c.receita,
+                fill: COLORS[i % COLORS.length]
+            }));
+            
+        // Se houver mais, agrupar o restante em 'Outros' (Opcional, mas para manter o design focado, deixamos apenas os top)
+        return top;
+        
+    }, [dados]);
+    
+    // Calculates total to show in the center of the Donut
+    const pieTotal = useMemo(() => pieData.reduce((acc, curr) => acc + curr.value, 0), [pieData]);
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
-                    <BarChart2 className="w-6 h-6 text-violet-400" />
+        <div className="flex-1 flex flex-col h-[calc(100vh-2rem)] sm:h-[calc(100vh-4rem)] -mx-4 sm:-mx-8 -mt-6 sm:-mt-8 -mb-4 sm:-mb-8 z-10 w-[calc(100%+2rem)] sm:w-[calc(100%+4rem)] overflow-hidden relative bg-dark-950">
+            {/* Header Sticky */}
+            <header className="sticky top-0 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between px-8 py-6 border-b border-white/5 bg-dark-950/80 backdrop-blur-xl gap-4 shrink-0">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-white text-xl font-black tracking-tight">Relatórios e Análises</h2>
+                    <span className="px-3 py-1 rounded-full bg-brand/10 text-brand text-[10px] font-black uppercase tracking-widest">{mes}</span>
                 </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-zinc-100">Relatórios</h1>
-                    <p className="text-sm text-zinc-500">Análise mensal consolidada por cliente.</p>
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="relative group flex-1 sm:w-64 hidden md:block">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg group-focus-within:text-brand transition-colors">search</span>
+                        <input className="w-full bg-dark-900 border border-white/5 rounded-xl text-sm focus:ring-1 focus:ring-brand pl-10 pr-4 py-2.5 outline-none text-white placeholder:text-slate-500 shadow-inner transition-all" placeholder="Buscar métrica..." type="text"/>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={exportarCsv} disabled={exportando || !dados} className="flex items-center gap-2 px-5 py-2.5 bg-brand hover:bg-brand-light text-[#12050e] rounded-xl text-sm font-black transition-all shadow-[0_0_15px_rgba(131,17,212,0.3)] hover:shadow-[0_0_20px_rgba(131,17,212,0.5)]">
+                            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="material-symbols-outlined text-[18px]">download</span>}
+                            Exportar
+                        </button>
+                        <button className="p-2.5 bg-white/5 border border-white/5 text-slate-300 rounded-xl hover:bg-white/10 transition-colors hidden sm:block">
+                            <Share2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            {/* Scrollable Dashboard Content */}
+            <div className="flex-1 overflow-y-auto px-8 py-8 space-y-8 custom-scrollbar">
+                
+                {/* Export Options & Filters (Local Data Filter) */}
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <div className="flex gap-2 p-1 rounded-xl bg-dark-900 border border-white/5">
+                        <input 
+                           type="month" 
+                           value={mes} 
+                           onChange={e => setMes(e.target.value)}
+                           className="bg-transparent text-white px-3 py-1.5 text-sm font-bold border-none outline-none cursor-pointer focus:ring-0 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <button className="flex items-center gap-1.5 px-4 py-2 bg-white/5 text-slate-300 border border-white/5 hover:bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+                            <span className="material-symbols-outlined text-sm text-rose-400">picture_as_pdf</span> PDF
+                        </button>
+                        <button onClick={exportarCsv} disabled={exportando || !dados} className="flex items-center gap-1.5 px-4 py-2 bg-white/5 text-slate-300 border border-white/5 hover:bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+                            <span className="material-symbols-outlined text-sm text-emerald-400">csv</span> CSV
+                        </button>
+                    </div>
+                </div>
+
+                {/* KPI Cards (Mapping Real API Data to Visual Mock) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 hover:bg-white/5 transition-all group glass relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand/10 rounded-full blur-[40px] pointer-events-none transition-all duration-500" />
+                        <div className="flex justify-between items-start mb-4 relative z-10">
+                            <span className="material-symbols-outlined text-brand p-2 bg-brand/10 border border-brand/20 rounded-xl">trending_up</span>
+                            <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-0.5 border border-emerald-500/20 px-2 py-0.5 rounded bg-emerald-500/5">
+                                Real
+                            </span>
+                        </div>
+                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-black mb-1 relative z-10">Receita Total do Período</p>
+                        {carregando ? (
+                            <div className="h-8 w-1/2 bg-white/5 animate-pulse rounded my-1" />
+                        ) : (
+                            <h3 className="text-3xl font-black text-white relative z-10">{moeda(dados?.totalReceita || 0)}</h3>
+                        )}
+                        <p className="text-[10px] text-slate-500 font-bold mt-2 relative z-10">Mês referência: {mes}</p>
+                    </div>
+
+                    <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 hover:bg-white/5 transition-all group glass relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-[40px] pointer-events-none transition-all duration-500" />
+                        <div className="flex justify-between items-start mb-4 relative z-10">
+                            <span className="material-symbols-outlined text-amber-500 p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">timer</span>
+                            <span className="text-rose-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-0.5 border border-rose-500/20 px-2 py-0.5 rounded bg-rose-500/5">
+                                Pendente
+                            </span>
+                        </div>
+                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-black mb-1 relative z-10">Faturas Pendentes</p>
+                        {carregando ? (
+                            <div className="h-8 w-1/2 bg-white/5 animate-pulse rounded my-1" />
+                        ) : (
+                            <h3 className="text-3xl font-black text-amber-500 relative z-10">{moeda(dados?.totalPendente || 0)}</h3>
+                        )}
+                        <div className="w-full bg-dark-950 border border-white/5 h-1.5 rounded-full mt-4 overflow-hidden relative z-10">
+                            <div className="bg-amber-500 h-full rounded-full" style={{width: `${dados?.totalPendente ? (dados.totalReceita / (dados.totalReceita + dados.totalPendente) * 100) : 100}%`}}></div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 hover:bg-white/5 transition-all group glass relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[40px] pointer-events-none transition-all duration-500" />
+                        <div className="flex justify-between items-start mb-4 relative z-10">
+                            <span className="material-symbols-outlined text-emerald-400 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">group</span>
+                            <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-0.5 border border-emerald-500/20 px-2 py-0.5 rounded bg-emerald-500/5">
+                                Base
+                            </span>
+                        </div>
+                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-black mb-1 relative z-10">Clientes Ativos</p>
+                        {carregando ? (
+                            <div className="h-8 w-1/4 bg-white/5 animate-pulse rounded my-1" />
+                        ) : (
+                            <h3 className="text-3xl font-black text-white relative z-10">{dados?.totalClientes || 0}</h3>
+                        )}
+                        <div className="flex gap-1 mt-4 relative z-10">
+                            {[1,2,3,4,5].map(star => (
+                                <span key={star} className="material-symbols-outlined text-emerald-400 text-sm" style={{fontVariationSettings: "'FILL' 1"}}>star</span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    {/* Distribuição de Serviços (Pie Chart) */}
+                    <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 glass hover:bg-white/5 transition-colors">
+                        <h4 className="text-lg font-bold mb-6 text-white tracking-tight">Distribuição da Receita</h4>
+                        
+                        {carregando ? (
+                            <div className="flex flex-col items-center justify-center h-48">
+                                <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                            </div>
+                        ) : pieData.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-48 border border-dashed border-white/10 rounded-xl">
+                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Nenhum dado financeiro no mês</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-around flex-wrap gap-8">
+                                <div className="relative w-48 h-48">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <RechartsTooltip content={<CustomPieTooltip />} />
+                                            <Pie
+                                                data={pieData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={65} // Makes it a donut
+                                                outerRadius={85}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                stroke="none"
+                                            >
+                                                {pieData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.fill} style={{filter: `drop-shadow(0px 0px 8px ${entry.fill}80)`}} />
+                                                ))}
+                                            </Pie>
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                        <span className="text-lg font-black text-white">{moeda(pieTotal).split(',')[0]}</span>
+                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Total Top 4</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-4">
+                                    {pieData.map((entry, index) => {
+                                        const perc = ((entry.value / pieTotal) * 100).toFixed(0);
+                                        return (
+                                            <div key={index} className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full" style={{backgroundColor: entry.fill, boxShadow: `0 0 10px ${entry.fill}80`}}></div>
+                                                <div className="flex-1 min-w-[120px] flex justify-between gap-4">
+                                                    <span className="text-xs font-bold text-slate-400">{entry.name}</span>
+                                                    <span className="text-xs font-black text-white">{perc}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Simulação: Carga de Trabalho -> Volume de Entregas por Cliente */}
+                    <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 glass hover:bg-white/5 transition-colors">
+                        <h4 className="text-lg font-bold mb-6 text-white tracking-tight">Volume de Entregas</h4>
+                        
+                        {carregando ? (
+                             <div className="flex flex-col items-center justify-center h-48">
+                                <Loader2 className="w-8 h-8 animate-spin text-brand" />
+                            </div>
+                        ) : (!dados || dados.clientes.length === 0) ? (
+                            <div className="flex flex-col items-center justify-center h-48 border border-dashed border-white/10 rounded-xl">
+                                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Nenhum projeto no período</span>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {dados.clientes
+                                    .filter(c => c.projetosTotal > 0)
+                                    .sort((a,b) => b.projetosEntregues - a.projetosEntregues)
+                                    .slice(0, 4)
+                                    .map((c, i) => {
+                                        const perc = c.projetosTotal > 0 ? (c.projetosEntregues / c.projetosTotal) * 100 : 0;
+                                        return (
+                                            <div key={i} className="space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="font-bold text-white text-xs">{c.cliente.split(' ')[0]} <span className="font-normal text-slate-500">({c.projetosEntregues}/{c.projetosTotal} entregues)</span></span>
+                                                    <span className="text-brand font-black text-xs">{perc.toFixed(0)}% Ocupação</span>
+                                                </div>
+                                                <div className="w-full bg-dark-950 border border-white/5 h-2 rounded-full overflow-hidden">
+                                                    <div className="bg-brand h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(131,17,212,0.8)]" style={{width: `${perc}%`}}></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Ranking de Lucratividade (Tabela Analítica) */}
+                <div className="p-6 rounded-2xl border border-white/5 bg-dark-900/50 glass hover:bg-white/5 transition-colors">
+                    <div className="flex justify-between items-center mb-6">
+                        <h4 className="text-lg font-bold text-white tracking-tight">Análise Holística de Lucratividade</h4>
+                        <button className="text-brand text-xs font-black uppercase tracking-widest hover:text-brand-light transition-colors">Ver todos</button>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-white/10 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                                    <th className="pb-4 pt-2">Cliente / Operação</th>
+                                    <th className="pb-4 pt-2">Receita Bruta</th>
+                                    <th className="pb-4 pt-2 text-center">Entrega</th>
+                                    <th className="pb-4 pt-2 text-center">Status</th>
+                                    <th className="pb-4 pt-2 text-right">Saldo Líquido</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {carregando ? (
+                                    <tr><td colSpan={5} className="py-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-slate-500 mx-auto"/></td></tr>
+                                ) : !dados || dados.clientes.length === 0 ? (
+                                    <tr><td colSpan={5} className="py-12 text-center text-xs font-bold uppercase tracking-widest text-slate-500">Nenhum dado financeiro no mês</td></tr>
+                                ) : (
+                                    dados?.clientes.map((c) => {
+                                        const avatarInitial = c.cliente.substring(0, 2).toUpperCase();
+                                        const isLucrativo = c.saldo >= 0;
+                                        
+                                        // Mock percentage margin logic
+                                        const isFullyDelivered = c.projetosEntregues === c.projetosTotal && c.projetosTotal > 0;
+                                        
+                                        return (
+                                            <tr key={c.clienteId} className="group hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => {
+                                                setClienteSnapshot(c);
+                                                setModalAberto(true);
+                                            }}>
+                                                <td className="py-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="size-10 rounded-xl bg-dark-950 border border-white/10 flex items-center justify-center text-white font-black text-[10px]">
+                                                            {avatarInitial}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-white group-hover:text-brand transition-colors">{c.cliente}</p>
+                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{c.contratosAtivos} Contrato(s) Vinculado(s)</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-5 text-sm font-black text-white">{moeda(c.receita)}</td>
+                                                <td className="py-5 text-center">
+                                                    <span className={`px-2 py-1 ${isFullyDelivered ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-brand/10 text-brand border-brand/20"} text-[9px] font-black uppercase tracking-widest rounded border`}>
+                                                        {isFullyDelivered ? '100%' : `${c.projetosEntregues}/${c.projetosTotal} proj `}
+                                                    </span>
+                                                </td>
+                                                <td className="py-5 text-center">
+                                                    <span className={`px-2 py-1 ${ c.pendente === 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-500"} text-[9px] font-black uppercase tracking-widest rounded border-transparent`}>
+                                                        {c.pendente === 0 ? "Liquidado" : "Pendente"}
+                                                    </span>
+                                                </td>
+                                                <td className={`py-5 text-right font-black text-sm ${isLucrativo ? "text-emerald-400" : "text-rose-500"}`}>
+                                                    {moeda(c.saldo)}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            {/* Filtros */}
-            <Card className="bg-zinc-900 border-white/10">
-                <CardContent className="p-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] text-zinc-500 uppercase tracking-wide font-semibold">Mês</label>
-                            <Input
-                                type="month"
-                                value={mes}
-                                onChange={e => setMes(e.target.value)}
-                                className="border-white/10 bg-zinc-800 w-40 text-sm"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                            <label className="text-[10px] text-zinc-500 uppercase tracking-wide font-semibold">Filtrar por Cliente</label>
-                            <select
-                                value={clienteId}
-                                onChange={e => setClienteId(e.target.value)}
-                                className="rounded-md border border-white/10 bg-zinc-800 text-sm text-zinc-300 px-3 py-2 h-9 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                                <option value="">Todos os clientes</option>
-                                {clientes.map(c => (
-                                    <option key={c.id} value={c.id}>{c.nome}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex gap-2 mt-5">
-                            <Button
-                                onClick={buscar}
-                                disabled={carregando}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2"
-                            >
-                                {carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                Gerar
-                            </Button>
-                            <Button
-                                onClick={exportarCsv}
-                                disabled={exportando || !dados}
-                                variant="outline"
-                                className="border-white/10 text-zinc-400 hover:text-zinc-100 gap-2"
-                            >
-                                {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                CSV
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* KPI Sumário */}
-            {dados && !carregando && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="bg-zinc-900 border-white/10">
-                        <CardContent className="p-4 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-violet-500/10"><Users className="w-5 h-5 text-violet-400" /></div>
-                            <div>
-                                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Clientes</p>
-                                <p className="text-2xl font-bold text-violet-400">{dados.totalClientes}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-white/10">
-                        <CardContent className="p-4 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-emerald-500/10"><TrendingUp className="w-5 h-5 text-emerald-400" /></div>
-                            <div>
-                                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Receita Total</p>
-                                <p className="text-lg font-bold text-emerald-400">{moeda(dados.totalReceita)}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-white/10">
-                        <CardContent className="p-4 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-amber-500/10"><AlertCircle className="w-5 h-5 text-amber-400" /></div>
-                            <div>
-                                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Pendente</p>
-                                <p className="text-lg font-bold text-amber-400">{moeda(dados.totalPendente)}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-zinc-900 border-white/10">
-                        <CardContent className="p-4 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-indigo-500/10"><FileText className="w-5 h-5 text-indigo-400" /></div>
-                            <div>
-                                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Período</p>
-                                <p className="text-lg font-bold text-indigo-400">{mesLabel(dados.mesReferencia)}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
-
-            {/* Gráfico de Barras por Cliente */}
-            {chartData.length > 0 && !carregando && (
-                <Card className="bg-zinc-900 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base text-zinc-100">Receita vs Pendente por Cliente</CardTitle>
-                        <CardDescription>Top 8 clientes do período</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                                <XAxis dataKey="nome" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${v / 1000}k`} />
-                                <Tooltip content={<CustomTooltio />} />
-                                <Legend wrapperStyle={{ fontSize: "11px", color: "#71717a" }} />
-                                <Bar dataKey="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="Pendente" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Tabela Detalhada */}
-            <Card className="bg-zinc-900 border-white/10">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-lg text-violet-400">Detalhamento por Cliente</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {carregando ? (
-                        <div className="space-y-3">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <div key={i} className="h-10 bg-zinc-800 rounded animate-pulse" />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="rounded-md border border-white/10">
-                            <Table>
-                                <TableHeader className="bg-zinc-800/50">
-                                    <TableRow className="border-white/10 hover:bg-transparent">
-                                        <TableHead className="text-zinc-300 font-semibold">Cliente</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-center">Contratos</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-center">Projetos</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-center">Entregues</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-right">Receita</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-right">Pendente</TableHead>
-                                        <TableHead className="text-zinc-300 font-semibold text-right">Saldo</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {dados?.clientes.map(c => (
-                                        <TableRow key={c.clienteId} className="border-white/10 hover:bg-zinc-800/30">
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-zinc-500 hover:text-violet-400"
-                                                        onClick={() => {
-                                                            setClienteSnapshot(c);
-                                                            setModalAberto(true);
-                                                        }}
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </Button>
-                                                    <div>
-                                                        <p className="font-medium text-zinc-100 text-sm">{c.cliente}</p>
-                                                        {c.email && <p className="text-xs text-zinc-500">{c.email}</p>}
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <span className="inline-flex items-center gap-1 text-xs text-indigo-400">
-                                                    <FileText className="w-3 h-3" />{c.contratosAtivos}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-center text-zinc-400 text-sm">{c.projetosTotal}</TableCell>
-                                            <TableCell className="text-center">
-                                                <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
-                                                    <CheckCircle2 className="w-3 h-3" />{c.projetosEntregues}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right font-semibold text-emerald-400 text-sm">{moeda(c.receita)}</TableCell>
-                                            <TableCell className="text-right text-amber-400 text-sm">
-                                                {c.pendente > 0 ? moeda(c.pendente) : <span className="text-zinc-600">—</span>}
-                                            </TableCell>
-                                            <TableCell className={`text-right font-semibold text-sm ${c.saldo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                                {moeda(c.saldo)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {(!dados || dados.clientes.length === 0) && (
-                                        <TableRow>
-                                            <TableCell colSpan={7} className="h-24 text-center text-zinc-600">
-                                                Nenhum dado encontrado para este período.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Modal de Relatório Premium */}
+            {/* Modal de Relatório Premium Details Popup */}
             {clienteSnapshot && (
                 <RelatorioClienteModal
                     aberto={modalAberto}

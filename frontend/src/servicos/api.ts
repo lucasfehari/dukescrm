@@ -23,6 +23,24 @@ async function handleResponse<T>(res: Response): Promise<T> {
     return res.json() as Promise<T>;
 }
 
+// ── UPLOADS ──────────────────────────────────────────────────
+export const uploadsApi = {
+    enviarArquivo: async (arquivo: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append("arquivo", arquivo);
+
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/upload`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData, // fetch will automatically set the correct multipart boundary
+        });
+
+        const data = await handleResponse<{ url: string }>(res);
+        return data.url;
+    }
+};
+
 // ── CLIENTES ──────────────────────────────────────────────────
 export const clientesApi = {
     listar: () =>
@@ -223,6 +241,9 @@ export interface Cliente {
     email?: string;
     telefone?: string;
     documento?: string;
+    logoUrl?: string;
+    saude?: "OTIMA" | "REGULAR" | "ALERTA";
+    mrrEstimado?: number | null;
     linkDrive?: string;
     linkBriefing?: string;
     observacoes?: string;

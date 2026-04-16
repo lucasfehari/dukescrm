@@ -13,6 +13,9 @@ export class ClienteService {
             documento: dados.documento || null,
             linkDrive: dados.linkDrive || null,
             linkBriefing: dados.linkBriefing || null,
+            logoUrl: dados.logoUrl || null,
+            saude: dados.saude || "OTIMA",
+            mrrEstimado: dados.mrrEstimado || null,
             observacoes: dados.observacoes || null,
         };
 
@@ -61,6 +64,9 @@ export class ClienteService {
             ...(dados.documento !== undefined && { documento: dados.documento || null }),
             ...(dados.linkDrive !== undefined && { linkDrive: dados.linkDrive || null }),
             ...(dados.linkBriefing !== undefined && { linkBriefing: dados.linkBriefing || null }),
+            ...(dados.logoUrl !== undefined && { logoUrl: dados.logoUrl || null }),
+            ...(dados.saude !== undefined && { saude: dados.saude }),
+            ...(dados.mrrEstimado !== undefined && { mrrEstimado: dados.mrrEstimado || null }),
             ...(dados.observacoes !== undefined && { observacoes: dados.observacoes || null }),
         };
 

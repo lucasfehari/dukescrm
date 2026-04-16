@@ -17,6 +17,8 @@ model Usuario {
   email        String    @unique
   senhaHash    String
   funcao       FuncaoUsuario @default(USUARIO)
+  avatarUrl    String?
+  configuracoes Json?     // Configurações da Agência, Temas, etc.
   
   criadoEm     DateTime  @default(now())
   atualizadoEm DateTime  @updatedAt
@@ -42,6 +44,9 @@ model Cliente {
   documento    String?   // CPF ou CNPJ
 
   // Prontuário do Cliente
+  logoUrl      String?   // Logo visual da empresa
+  saude        StatusSaudeCliente @default(OTIMA)
+  mrrEstimado  Decimal?  @db.Decimal(10, 2)
   linkDrive    String?   // Link para pasta no Google Drive/Nuvem
   linkBriefing String?   // Link para o documento de briefing
   observacoes  String?   @db.Text
@@ -54,6 +59,12 @@ model Cliente {
   projetos     Projeto[]   // Serviços avulsos (sem contrato formal)
 
   @@map("clientes")
+}
+
+enum StatusSaudeCliente {
+  OTIMA
+  REGULAR
+  ALERTA
 }
 
 model Contrato {
@@ -103,6 +114,12 @@ model Projeto {
   descricao    String?
   servicos     Json?         // Array de itens: [{ nome, valor, catalogoId? }]
   status       StatusProjeto @default(NAO_INICIADO)
+  
+  // Customização Kanban / Visual
+  capaUrl      String?       // Imagem de highlight do projeto
+  prioridade   NivelPrioridade @default(NORMAL)
+  tags         Json?         // Labels como ["Alta Rendimento", "Urgente"]
+  progresso    Int           @default(0) // Progresso 0 a 100
 
   prazoEstimado DateTime?
   concluidoEm   DateTime?
@@ -162,6 +179,13 @@ enum StatusProjeto {
   CANCELADO
 }
 
+enum NivelPrioridade {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
 // Pacotes de créditos vinculados a um contrato
 // Ex: "20 Estáticos", "10 Carrosséis", "5 Vídeos"
 model CreditoContrato {
@@ -192,6 +216,10 @@ model Financeiro {
   dataVencimento DateTime
   dataPagamento  DateTime?
   mesReferencia  String    // Ex: "2026-03" - para bloqueio temporal
+
+  // Metadados Documentais
+  linkFatura   String?   // Link gerado de PDF da nota
+  anexos       Json?     // Links adicionais ou arquivos de comprovação
 
   criadoEm     DateTime  @default(now())
   atualizadoEm DateTime  @updatedAt
